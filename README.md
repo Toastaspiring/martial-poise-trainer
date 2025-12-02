@@ -1,5 +1,11 @@
 # Martial Poise Trainer
 
+<p align="center">
+  <a href="https://toastaspiring.github.io/martial-poise-trainer/">
+    <img src="https://img.shields.io/badge/PLAY_NOW-WEB_APP-emerald?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Play Now" />
+  </a>
+</p>
+
 A web-based mechanics trainer for Kalista from League of Legends. This tool helps players practice attack-moving, rhythm, and kiting mechanics in a controlled environment.
 
 ## Project Structure
