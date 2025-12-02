@@ -213,45 +213,238 @@ button.icon-btn.active {
 }
 
 /* Utility */
+/* Top Bar Layout */
+.top-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 50px;
+    background: rgba(15, 23, 42, 0.95);
+    border-bottom: 1px solid #334155;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 50;
+    pointer-events: auto;
+    /* Block clicks from passing to canvas */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Stats in Top Bar */
+.stat-group {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.stat-item {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.stat-label {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Updated Static Value Styles */
+.stat-value {
+    font-size: 1.0rem;
+    font-weight: bold;
+    color: #e2e8f0;
+    display: inline-block;
+    /* Allows width setting */
+    min-width: 40px;
+    /* Reserve space so labels don't jump */
+    font-variant-numeric: tabular-nums;
+    /* Monospace digits to prevent inner jitter */
+}
+
+.dps-value {
+    color: #fbbf24;
+    font-size: 1.1rem;
+    min-width: 50px;
+}
+
+/* DPS might be wider */
+.dash-value {
+    color: #38bdf8;
+}
+
+.miss-value {
+    color: #f87171;
+}
+
+/* Advanced Menu (Collapsible) */
+.advanced-menu {
+    position: fixed;
+    top: 50px;
+    right: 0;
+    width: 320px;
+    background: rgba(15, 23, 42, 0.98);
+    border-bottom: 1px solid #334155;
+    border-left: 1px solid #334155;
+    border-bottom-left-radius: 8px;
+    padding: 20px;
+    transform: translateY(-150%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 49;
+    pointer-events: auto;
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+}
+
+.advanced-menu.open {
+    transform: translateY(0);
+}
+
+/* Controls inside menu */
+.menu-section {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #334155;
+}
+
+.menu-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.control-label {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    display: block;
+    margin-bottom: 4px;
+}
+
+/* Key Badge Styles */
+.key-badge {
+    display: inline-block;
+    background: #334155;
+    border: 1px solid #475569;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: monospace;
+    color: #e2e8f0;
+    font-size: 0.75rem;
+    min-width: 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.key-badge:hover {
+    border-color: #94a3b8;
+    background: #475569;
+}
+
+.key-badge.listening {
+    background-color: #f59e0b;
+    /* Orange-500 */
+    color: #0f172a;
+    border-color: #d97706;
+    font-weight: bold;
+    box-shadow: 0 0 5px rgba(245, 158, 11, 0.5);
+}
+
+.key-badge.static {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.key-badge.static:hover {
+    background: #334155;
+    border-color: #475569;
+}
+
+input[type=range] {
+    height: 4px;
+    border-radius: 2px;
+    background: #475569;
+    width: 100%;
+}
+
+button.icon-btn {
+    padding: 6px 12px;
+    border-radius: 4px;
+    background: #334155;
+    color: white;
+    font-size: 0.85rem;
+    transition: background 0.2s;
+}
+
+button.icon-btn:hover {
+    background: #475569;
+}
+
+button.icon-btn.active {
+    background: #b91c1c;
+    /* Red background when active/chasing */
+    color: white;
+    border-color: #ef4444;
+}
+
+/* Toggle Switch Styles */
+.chase-knob {
+    transform: translateX(0);
+}
+
+.chase-switch.active .chase-knob {
+    transform: translateX(20px);
+    background-color: #ffffff;
+}
+
+.chase-switch.active {
+    background-color: #ef4444;
+    /* Red-500 */
+    border-color: #b91c1c;
+}
+
+/* Utility */
 .highlight {
     color: #34d399;
     font-weight: bold;
 }
 
 /* Modal Styles */
+/* just a simple overlay */
 .modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(15, 23, 42, 0.85);
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.8);
+    /* darker background */
     z-index: 100;
     display: flex;
     align-items: center;
     justify-content: center;
-    opacity: 1;
-    transition: opacity 0.3s ease;
+    /* opacity: 1; removed transition cause it was buggy */
 }
 
 .modal-overlay.hidden {
-    opacity: 0;
-    pointer-events: none;
+    display: none;
 }
 
 .modal-content {
     background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 12px;
-    padding: 32px;
-    width: 90%;
+    border: 2px solid #475569;
+    /* made border thicker */
+    border-radius: 8px;
+    padding: 20px;
+    width: 80%;
     max-width: 500px;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-    transform: scale(1);
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    /* box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); removed shadow */
 }
 
-.modal-overlay.hidden .modal-content {
+/* .modal-overlay.hidden .modal-content {
     transform: scale(0.95);
-}
+} */

@@ -74,6 +74,7 @@ const onboardingModal = document.getElementById('onboardingModal');
 const startBtn = document.getElementById('startTrainingBtn');
 
 startBtn.addEventListener('click', () => {
+    console.log('User started training'); // debug
     onboardingModal.classList.add('hidden');
     // Optional: Start audio context if needed on user interaction
     if (audioCtx.state === 'suspended') audioCtx.resume();
