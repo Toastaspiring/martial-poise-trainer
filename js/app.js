@@ -69,6 +69,16 @@ chaseContainer.addEventListener('click', (e) => {
 menu.addEventListener('mousedown', (e) => e.stopPropagation());
 document.querySelector('.top-bar').addEventListener('mousedown', (e) => e.stopPropagation());
 
+// --- MODAL LOGIC ---
+const onboardingModal = document.getElementById('onboardingModal');
+const startBtn = document.getElementById('startTrainingBtn');
+
+startBtn.addEventListener('click', () => {
+    onboardingModal.classList.add('hidden');
+    // Optional: Start audio context if needed on user interaction
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+});
+
 // --- GAME LOGIC ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
