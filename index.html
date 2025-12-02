@@ -144,6 +144,18 @@
                     <span>Movement / Dash</span>
                     <span class="key-badge" id="badgeMoveBtn" title="Click to Toggle Mouse Button">RMB</span>
                 </div>
+                <div class="flex justify-between items-center pt-2 border-t border-slate-700/50">
+                    <span>LMB Attack Move</span>
+                    <div class="flex items-center gap-2 cursor-pointer" id="lmbAmToggleContainer" title="Toggle Left Click Attack Move">
+                        <button id="lmbAmSwitch"
+                            class="chase-switch w-8 h-4 bg-slate-800 rounded-full relative transition-colors duration-200 ease-in-out border border-slate-600 focus:outline-none"
+                            aria-pressed="false">
+                            <div id="lmbAmKnob"
+                                class="chase-knob w-2 h-2 bg-slate-400 rounded-full absolute top-[3px] left-[3px] transition-transform duration-200 ease-in-out shadow-sm pointer-events-none">
+                            </div>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 

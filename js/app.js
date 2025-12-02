@@ -16,6 +16,10 @@ const chaseSwitch = document.getElementById('chaseToggleSwitch');
 const chaseContainer = document.getElementById('chaseToggleContainer');
 const menu = document.getElementById('advancedMenu');
 
+const lmbAmSwitch = document.getElementById('lmbAmSwitch');
+const lmbAmContainer = document.getElementById('lmbAmToggleContainer');
+let useLeftClickAttackMove = false;
+
 // Badges
 const badgeAmKey = document.getElementById('badgeAmKey');
 const badgeStopKey = document.getElementById('badgeStopKey');
@@ -63,6 +67,16 @@ menuBtn.addEventListener('click', (e) => {
 
 chaseContainer.addEventListener('click', (e) => {
     toggleChaseMode();
+    e.stopPropagation();
+});
+
+lmbAmContainer.addEventListener('click', (e) => {
+    useLeftClickAttackMove = !useLeftClickAttackMove;
+    if (useLeftClickAttackMove) {
+        lmbAmSwitch.classList.add('active');
+    } else {
+        lmbAmSwitch.classList.remove('active');
+    }
     e.stopPropagation();
 });
 
@@ -305,6 +319,21 @@ window.addEventListener('mousedown', (e) => {
             isTargeting = false; body.classList.remove('targeting');
         } else if (btn === keybinds.moveBtn) {
             isTargeting = false; body.classList.remove('targeting');
+        }
+        return;
+    }
+
+    if (useLeftClickAttackMove && btn === 0) {
+        if (player.state === STATE.IDLE || player.state === STATE.COOLDOWN || player.state === STATE.WALKING) {
+            if (isTargetHover) {
+                startAttack(false);
+            } else {
+                moveTo(mx, my);
+                player.isAttackMoving = true;
+                spawnText("Attack Move", player.x, player.y - 40, "#94a3b8");
+            }
+        } else if (player.state === STATE.WINDUP) {
+            if (!isTargetHover) queueDash(mx, my);
         }
         return;
     }
