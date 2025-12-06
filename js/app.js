@@ -81,7 +81,7 @@ lmbAmContainer.addEventListener('click', (e) => {
 });
 
 menu.addEventListener('mousedown', (e) => e.stopPropagation());
-document.querySelector('.top-bar').addEventListener('mousedown', (e) => e.stopPropagation());
+// Removed .top-bar listener as it caused a crash and is no longer needed with pointer-events-none container
 
 // --- MODAL LOGIC ---
 const onboardingModal = document.getElementById('onboardingModal');
@@ -98,171 +98,205 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const body = document.body;
 
-// Enemy Stats (Dynamic)
-let enemyChaseSpeed = 340;
-let enemyAD = 60;
-let enemyRange = 150; // Visual range units
+// --- GLOBAL STATE ---
+let width = window.innerWidth;
+let height = window.innerHeight;
+let lastTime = 0;
 
 // Game State
-let width, height;
-let lastTime = 0;
-let currentAS = KALISTA_CONSTANTS.BASE_AS;
-let bootsTier = 2;
-let currentWindupTime = 0;
-let currentMoveSpeed = 0;
-
 let score = 0;
 let misses = 0;
 let totalDamage = 0;
-let combatStartTime = 0;
 let isInCombat = false;
-
+let combatStartTime = 0;
 let isTargeting = false;
+
+// Config
 let isChaseMode = false;
+let enemyChaseSpeed = 340;
+let enemyRange = 150;
+let enemyAD = 60;
 
-const STATE = {
-    IDLE: 0,
-    WINDUP: 1,
-    DASHING: 2,
-    COOLDOWN: 3,
-    WALKING: 4
-};
+// Player Stats (Calculated)
+let currentWindupTime = 0;
+let currentMoveSpeed = 0;
+let currentAS = 0;
+let bootsTier = 2;
 
+// Entities
 const player = {
     x: 0, y: 0,
-    radius: 20,
-    color: '#34d399',
-    hp: KALISTA_CONSTANTS.PLAYER_MAX_HP,
-    maxHp: KALISTA_CONSTANTS.PLAYER_MAX_HP,
-    state: STATE.IDLE,
-    stateTimer: 0,
-    queuedDash: null,
-    angle: 0,
-    dashVx: 0, dashVy: 0,
     destX: 0, destY: 0,
-    isAttackMoving: false
+    angle: 0,
+    state: 'IDLE', // IDLE, WALKING, WINDUP, DASHING, COOLDOWN
+    stateTimer: 0,
+    isAttackMoving: false,
+    queuedDash: null, // {x, y, isForward}
+    radius: 25,
+    hp: 1000,
+    maxHp: 1000,
+    dashVx: 0, dashVy: 0
 };
 
 const target = {
     x: 0, y: 0,
-    radius: 30,
-    color: '#f87171',
-    angle: 0,
+    radius: 35,
     attackTimer: 0
 };
 
 const projectiles = [];
 const floatingTexts = [];
 
-// Audio
+const STATE = {
+    IDLE: 'IDLE',
+    WALKING: 'WALKING',
+    WINDUP: 'WINDUP',
+    DASHING: 'DASHING',
+    COOLDOWN: 'COOLDOWN'
+};
+
+// --- AUDIO ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const sounds = {};
+
 function playSound(type) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.connect(gain);
     gain.connect(audioCtx.destination);
+
     const now = audioCtx.currentTime;
 
     if (type === 'throw') {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(300, now);
-        osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-        osc.start(now); osc.stop(now + 0.1);
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
     } else if (type === 'dash') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(120, now);
-        osc.frequency.linearRampToValueAtTime(250, now + 0.15);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.linearRampToValueAtTime(0, now + 0.15);
-        osc.start(now); osc.stop(now + 0.15);
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.linearRampToValueAtTime(300, now + 0.15);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+        osc.start(now);
+        osc.stop(now + 0.15);
     } else if (type === 'hit') {
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(80, now);
-        gain.gain.setValueAtTime(0.03, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.start(now); osc.stop(now + 0.05);
-    } else if (type === 'click') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(800, now);
-        gain.gain.setValueAtTime(0.02, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
-        osc.start(now); osc.stop(now + 0.03);
-    } else if (type === 'lose') {
-        osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(200, now);
-        osc.frequency.exponentialRampToValueAtTime(50, now + 0.5);
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-        osc.start(now); osc.stop(now + 0.5);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.1);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
     } else if (type === 'hurt') {
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(150, now);
-        osc.frequency.linearRampToValueAtTime(50, now + 0.1);
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-        osc.start(now); osc.stop(now + 0.1);
+        osc.frequency.setValueAtTime(100, now);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.2);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
+    } else if (type === 'lose') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.linearRampToValueAtTime(100, now + 1.0);
+        gain.gain.setValueAtTime(0.5, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 1.0);
+        osc.start(now);
+        osc.stop(now + 1.0);
     }
 }
 
+// --- HELPER FUNCTIONS ---
 function calculateStats() {
-    currentWindupTime = KalistaModel.calculateWindup(currentAS);
-    currentMoveSpeed = KalistaModel.calculateMoveSpeed(bootsTier);
+    const asSlider = document.getElementById('asSlider');
+    const bootsSelect = document.getElementById('bootsSelect');
 
-    document.getElementById('asDisplay').innerText = currentAS.toFixed(3);
-    document.getElementById('windupDisplay').innerText = currentWindupTime.toFixed(3) + 's';
+    const baseAS = 0.694;
+    const userAS = parseFloat(asSlider ? asSlider.value : 0.694);
+    currentAS = userAS;
 
-    const ranges = KalistaModel.getDashRanges(bootsTier);
-    document.getElementById('dashRangeText').innerText = `Range (Units): ${ranges.back} (Back) / ${ranges.fwd} (Fwd)`;
+    // Kalista Windup Formula (approx): 0.25 * (1 / AS) ?? 
+    // Actually it's usually a percentage of the attack frame.
+    // Let's use a simplified model: Windup = 0.36 / AS (roughly)
+    currentWindupTime = KalistaModel.getWindupTime(currentAS);
+
+    bootsTier = parseInt(bootsSelect ? bootsSelect.value : 2);
+    currentMoveSpeed = 325 + (bootsTier * 25); // Base + Tier bonus
+
+    // Update UI
+    const windupDisplay = document.getElementById('windupDisplay');
+    if (windupDisplay) windupDisplay.innerText = `${currentWindupTime.toFixed(3)}s Windup`;
+
+    const asDisplay = document.getElementById('asDisplay');
+    if (asDisplay) asDisplay.innerText = currentAS.toFixed(3);
+
+    const dashRangeText = document.getElementById('dashRangeText');
+    if (dashRangeText) {
+        dashRangeText.innerText = `Range: ${DASH_RANGES_BACK[bootsTier]} (Back) / ${DASH_RANGES_FWD[bootsTier]} (Fwd)`;
+    }
+}
+
+function resetGame(fullReset = false) {
+    if (fullReset) {
+        score = 0;
+        misses = 0;
+        totalDamage = 0;
+        isInCombat = false;
+        player.hp = player.maxHp;
+        updateScore();
+    }
+
+    // Center Player
+    player.x = width * 0.3;
+    player.y = height * 0.5;
+    player.destX = player.x;
+    player.destY = player.y;
+    player.state = STATE.IDLE;
+    player.isAttackMoving = false;
+    player.queuedDash = null;
+
+    // Position Target
+    target.x = width * 0.7;
+    target.y = height * 0.5;
+    target.attackTimer = 1.0;
+
+    projectiles.length = 0;
+    floatingTexts.length = 0;
 }
 
 function toggleChaseMode() {
+    isChaseMode = !isChaseMode;
+    const knob = document.getElementById('chaseToggleKnob');
+    const sw = document.getElementById('chaseToggleSwitch');
+
     if (isChaseMode) {
-        isChaseMode = false;
-        chaseSwitch.classList.remove('active');
-        target.color = '#f87171';
-        resetGame(false);
+        sw.classList.add('bg-emerald-500/50');
+        sw.classList.remove('bg-slate-700/50');
+        knob.classList.add('translate-x-5');
+        knob.classList.add('bg-white');
+        knob.classList.remove('bg-slate-400');
+        spawnText("Chase Mode ON", player.x, player.y - 60, "#ef4444");
     } else {
-        isChaseMode = true;
-        chaseSwitch.classList.add('active');
-        target.color = '#fb923c';
-        resetGame(false);
-        spawnText("SURVIVE!", player.x, player.y - 60, "#fb923c");
+        sw.classList.remove('bg-emerald-500/50');
+        sw.classList.add('bg-slate-700/50');
+        knob.classList.remove('translate-x-5');
+        knob.classList.remove('bg-white');
+        knob.classList.add('bg-slate-400');
+        spawnText("Chase Mode OFF", player.x, player.y - 60, "#94a3b8");
+        // Reset target pos
+        target.x = width * 0.7;
+        target.y = height * 0.5;
     }
 }
 
-function resetGame(fullReset = true) {
-    player.x = width / 2 - 200;
-    player.y = height / 2;
-    player.hp = KALISTA_CONSTANTS.PLAYER_MAX_HP; // Reset HP
+// --- INPUT LISTENERS ---
+// Stats Config
+document.getElementById('asSlider').addEventListener('input', calculateStats);
+document.getElementById('bootsSelect').addEventListener('change', calculateStats);
 
-    target.x = width / 2 + 100;
-    target.y = height / 2;
-    target.attackTimer = 0;
-
-    score = 0; misses = 0; totalDamage = 0;
-    isInCombat = false; combatStartTime = 0;
-    player.state = STATE.IDLE;
-    player.destX = player.x; player.destY = player.y;
-    player.isAttackMoving = false;
-
-    document.getElementById('dps').innerText = "0";
-    updateScore();
-
-    if (fullReset && isChaseMode) {
-        isChaseMode = false;
-        chaseSwitch.classList.remove('active');
-        target.color = '#f87171';
-    }
-}
-
-// --- Event Listeners for Settings ---
-document.getElementById('asSlider').addEventListener('input', (e) => {
-    currentAS = parseFloat(e.target.value);
-    calculateStats();
-});
+// Enemy Config
 document.getElementById('chaseSpeedSlider').addEventListener('input', (e) => {
     enemyChaseSpeed = parseInt(e.target.value);
     document.getElementById('chaseSpeedDisplay').innerText = enemyChaseSpeed;
@@ -275,37 +309,29 @@ document.getElementById('enemyRangeSlider').addEventListener('input', (e) => {
     enemyRange = parseInt(e.target.value);
     document.getElementById('enemyRangeDisplay').innerText = enemyRange;
 });
-document.getElementById('bootsSelect').addEventListener('change', (e) => {
-    bootsTier = parseInt(e.target.value);
-    calculateStats();
-});
+
 document.getElementById('resetBtn').addEventListener('click', () => resetGame(true));
 
-// --- INPUTS ---
 window.addEventListener('keydown', (e) => {
-    if (e.repeat || document.activeElement.tagName === 'INPUT') return;
-    const key = e.key.toLowerCase();
-    if (key === 'f6') { e.preventDefault(); toggleChaseMode(); }
-    if (key === keybinds.reset.toLowerCase()) resetGame(true);
-    if (key === keybinds.attackMove.toLowerCase()) {
+    if (e.key.toLowerCase() === keybinds.chase) toggleChaseMode();
+    if (e.key.toLowerCase() === keybinds.reset) resetGame(true);
+    if (e.key.toLowerCase() === keybinds.stop) {
+        player.destX = player.x; player.destY = player.y;
+        player.state = STATE.IDLE;
+        player.isAttackMoving = false;
+        spawnText("Stop", player.x, player.y - 40, "#94a3b8");
+    }
+    if (e.key.toLowerCase() === keybinds.attackMove) {
+        // Attack Move Key (A-click style)
         isTargeting = true;
         body.classList.add('targeting');
-        playSound('click');
-    }
-    if (key === keybinds.stop.toLowerCase()) {
-        if (player.state === STATE.WALKING) {
-            player.state = STATE.IDLE;
-            player.isAttackMoving = false;
-            player.destX = player.x; player.destY = player.y;
-            spawnText("Stop", player.x, player.y - 40, "#94a3b8");
-        }
     }
 });
 
 window.addEventListener('contextmenu', e => e.preventDefault());
 
 window.addEventListener('mousedown', (e) => {
-    if (e.target.closest('.advanced-menu') || e.target.closest('.top-bar')) return;
+    if (e.target.closest('.advanced-menu') || e.target.closest('.glass-widget')) return;
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -539,95 +565,190 @@ function update(dt) {
 }
 
 function draw() {
-    ctx.fillStyle = '#0f172a';
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    // --- Background ---
+    ctx.save();
+    // Radial Gradient for depth
+    const gradient = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, width);
+    gradient.addColorStop(0, '#1e293b'); // Slate-800
+    gradient.addColorStop(1, '#0f172a'); // Slate-900
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
-    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
-    const gridSize = 50;
+    // Subtle Grid
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.05)';
+    ctx.lineWidth = 1;
+    const gridSize = 60;
     for (let x = 0; x < width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
     for (let y = 0; y < height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+    ctx.restore();
 
+    // --- Player (Spectral Spirit) ---
+    ctx.save();
+    // Glow Effect
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = 'rgba(52, 211, 153, 0.4)'; // Emerald Glow
+
+    // Movement Target Indicator
     if (player.state === STATE.WALKING) {
-        ctx.beginPath(); ctx.arc(player.destX, player.destY, 5, 0, Math.PI * 2);
-        ctx.fillStyle = '#94a3b8'; ctx.fill();
+        ctx.beginPath(); ctx.arc(player.destX, player.destY, 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.5)'; ctx.fill();
     }
 
+    // Attack Range Indicator
+    ctx.shadowBlur = 0; // Reset for range circle
     ctx.beginPath(); ctx.arc(player.x, player.y, KALISTA_CONSTANTS.ATTACK_RANGE_PIXELS, 0, Math.PI * 2);
     if (isTargeting) {
-        ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)'; ctx.lineWidth = 4; ctx.setLineDash([10, 5]);
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)'; ctx.lineWidth = 2; ctx.setLineDash([8, 6]);
     } else {
-        ctx.strokeStyle = 'rgba(52, 211, 153, 0.1)'; ctx.lineWidth = 2; ctx.setLineDash([]);
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.08)'; ctx.lineWidth = 1; ctx.setLineDash([]);
     }
     ctx.stroke(); ctx.setLineDash([]);
 
-    // Enemy
-    ctx.beginPath(); ctx.arc(target.x, target.y, target.radius, 0, Math.PI * 2);
-    ctx.fillStyle = target.color; ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-    // Enemy Range Indicator (only in chase)
-    if (isChaseMode) {
-        ctx.beginPath(); ctx.arc(target.x, target.y, enemyRange * SCALE_RATIO, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(248, 113, 113, 0.3)'; ctx.lineWidth = 1; ctx.stroke();
-    }
-
-    ctx.fillStyle = '#34d399';
-    for (const p of projectiles) {
-        ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
-    }
-
-    // Player
+    // Player Body
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = 'rgba(52, 211, 153, 0.6)';
     ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-    ctx.fillStyle = player.color; ctx.fill();
+    ctx.fillStyle = '#10b981'; // Emerald-500
+    ctx.fill();
 
-    // Health Bar
-    const barWidth = 60;
-    const barHeight = 6;
-    const hpPct = Math.max(0, player.hp / player.maxHp);
-    ctx.fillStyle = '#334155';
-    ctx.fillRect(player.x - barWidth / 2, player.y - 35, barWidth, barHeight);
-    ctx.fillStyle = '#22c55e'; // Green
-    ctx.fillRect(player.x - barWidth / 2, player.y - 35, barWidth * hpPct, barHeight);
+    // Inner Core
+    ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.arc(player.x, player.y, player.radius * 0.6, 0, Math.PI * 2);
+    ctx.fillStyle = '#6ee7b7'; // Emerald-300
+    ctx.fill();
 
+    // Direction Indicator
     ctx.beginPath();
     ctx.moveTo(player.x, player.y);
-    ctx.lineTo(player.x + Math.cos(player.angle) * 30, player.y + Math.sin(player.angle) * 30);
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.lineTo(player.x + Math.cos(player.angle) * (player.radius + 10), player.y + Math.sin(player.angle) * (player.radius + 10));
+    ctx.strokeStyle = '#d1fae5'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.restore();
 
+    // --- Enemy (Void/Spiked) ---
+    ctx.save();
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = isChaseMode ? 'rgba(248, 113, 113, 0.5)' : 'rgba(248, 113, 113, 0.2)';
+
+    // Spikes / Shape
+    const spikes = 8;
+    const outerRadius = target.radius;
+    const innerRadius = target.radius * 0.7;
+    ctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+        const r = (i % 2 === 0) ? outerRadius : innerRadius;
+        const a = (Math.PI * i / spikes) + (performance.now() / 1000); // Rotate slowly
+        const tx = target.x + Math.cos(a) * r;
+        const ty = target.y + Math.sin(a) * r;
+        if (i === 0) ctx.moveTo(tx, ty);
+        else ctx.lineTo(tx, ty);
+    }
+    ctx.closePath();
+    ctx.fillStyle = isChaseMode ? '#ef4444' : '#991b1b'; // Red-500 vs Red-800
+    ctx.fill();
+
+    // Enemy Core
+    ctx.beginPath(); ctx.arc(target.x, target.y, innerRadius * 0.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#fca5a5'; // Red-300
+    ctx.fill();
+
+    // Enemy Range (Chase Mode)
+    if (isChaseMode) {
+        ctx.shadowBlur = 0;
+        ctx.beginPath(); ctx.arc(target.x, target.y, enemyRange * SCALE_RATIO, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.2)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.restore();
+
+    // --- Projectiles (Spears) ---
+    ctx.save();
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#34d399';
+    for (const p of projectiles) {
+        ctx.beginPath();
+        const tailLen = 15;
+        const pAngle = Math.atan2(target.y - p.y, target.x - p.x);
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - Math.cos(pAngle) * tailLen, p.y - Math.sin(pAngle) * tailLen);
+        ctx.strokeStyle = '#6ee7b7'; ctx.lineWidth = 3; ctx.stroke();
+
+        ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = '#d1fae5'; ctx.fill();
+    }
+    ctx.restore();
+
+    // --- UI Elements (Health Bar, Windup) ---
+    ctx.save();
+    ctx.shadowBlur = 0;
+
+    // Player Health Bar
+    const barWidth = 50;
+    const barHeight = 4;
+    const hpPct = Math.max(0, player.hp / player.maxHp);
+    const barX = player.x - barWidth / 2;
+    const barY = player.y - 32;
+
+    // Background
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+    // Fill
+    ctx.fillStyle = '#10b981';
+    ctx.fillRect(barX, barY, barWidth * hpPct, barHeight);
+
+    // Windup Indicator (Arc)
     if (player.state === STATE.WINDUP) {
         const pct = 1 - (player.stateTimer / currentWindupTime);
-        if (player.queuedDash) {
-            ctx.strokeStyle = player.queuedDash.isForward ? '#fbbf24' : '#38bdf8';
-        } else {
-            ctx.strokeStyle = '#fff';
-        }
-        ctx.lineWidth = 5;
+        const startAngle = -Math.PI / 2;
+        const endAngle = startAngle + (Math.PI * 2 * pct);
+
         ctx.beginPath();
-        ctx.arc(player.x, player.y, player.radius + 8, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * pct));
+        ctx.arc(player.x, player.y, player.radius + 6, startAngle, endAngle);
+        ctx.strokeStyle = player.queuedDash ? (player.queuedDash.isForward ? '#fbbf24' : '#38bdf8') : '#ffffff';
+        ctx.lineWidth = 3;
         ctx.stroke();
+
+        // Dash Line
         if (player.queuedDash) {
             ctx.beginPath(); ctx.moveTo(player.x, player.y);
             ctx.lineTo(player.queuedDash.x, player.queuedDash.y);
-            ctx.strokeStyle = player.queuedDash.isForward ? 'rgba(251, 191, 36, 0.5)' : 'rgba(56, 189, 248, 0.5)';
-            ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+            ctx.strokeStyle = player.queuedDash.isForward ? 'rgba(251, 191, 36, 0.4)' : 'rgba(56, 189, 248, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
         }
     }
+    ctx.restore();
 
-    ctx.font = "bold 16px sans-serif";
+    // --- Floating Text ---
+    ctx.save();
+    ctx.font = "bold 14px 'Inter', sans-serif";
     ctx.textAlign = "center";
     for (const t of floatingTexts) {
         ctx.globalAlpha = t.life;
         ctx.fillStyle = t.color;
+        // Add shadow for readability
+        ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 4;
         ctx.fillText(t.text, t.x, t.y);
-        ctx.globalAlpha = 1.0;
     }
+    ctx.restore();
 }
 
 function resize() {
-    width = window.innerWidth;
-    height = window.innerHeight;
+    // Resize based on the container, not the window
+    const container = canvas.parentElement;
+    width = container.clientWidth;
+    height = container.clientHeight;
+
+    console.log(`[Resize] Container: ${width}x${height}`);
+
+    // Update canvas internal resolution to match display size
     canvas.width = width;
     canvas.height = height;
+
     resetGame(); calculateStats();
+
+    console.log(`[Reset] Player: (${player.x}, ${player.y}), Target: (${target.x}, ${target.y})`);
 }
 window.addEventListener('resize', resize);
 resize();
